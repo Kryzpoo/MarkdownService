@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Posts</title>
+</head>
+<body>
+
+    <div>
+        <h1>PROCESSED</h1>
+        <ul>
+            {% for post in processed %}
+            <li><a href="/posts/{{post}}">{{post}}</a></li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div>
+        <h1>PROCESSING</h1>
+        <ul>
+            {% for post in processing %}
+            <li>{{post}}</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+</body>
+</html>
