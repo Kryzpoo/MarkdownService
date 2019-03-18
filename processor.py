@@ -3,7 +3,7 @@ from multiprocessing import Process
 
 import os
 
-from document import DocumentStatus
+from document import DocumentStatus, DocumentType
 import storage
 
 
@@ -18,8 +18,7 @@ class Processor(Process):
         self.storage_name = storage_name
 
     def run(self):
-        storage.storage_name = self.storage_name
-        storage.init()
+        storage.init(self.storage_name)
         while self.running:
             self.infinite_process()
 
@@ -28,17 +27,34 @@ class Processor(Process):
 
     def infinite_process(self):
         documents_to_process = storage.get_processing_documents()
-        for doc_name, content in documents_to_process:
-            file_content = self.process(content)
+        for doc_name, doc_type, content in documents_to_process:
+            file_content = DocumentType[doc_type].process(content)
             with open("posts/{}.html".format(doc_name), "w+") as f:
                 f.write(file_content)
             storage.set_document_status(doc_name, DocumentStatus.PROCESSED)
         time.sleep(self.period)
 
-    @staticmethod
-    def process(content: str):
-        content = Processor.set_html_headers(content)
-        content = Processor.set_html_lists(content)
+
+class ContentProcessor:
+
+    @classmethod
+    def process(cls, doc_type, content):
+        processor = None
+        if doc_type == DocumentType.MD:
+            processor = MDProcessor
+        if processor is None:
+            raise ValueError("Processor not defined by document type {doc_type}."
+                             "Available types: {types}".format(doc_type=doc_type,
+                                                               types=[t.value for t in DocumentType]))
+        return processor.process(content)
+
+
+class MDProcessor:
+
+    @classmethod
+    def process(cls, content: str):
+        content = cls.set_html_headers(content)
+        content = cls.set_html_lists(content)
         content = content.replace(os.linesep + Processor.remove_marker, "")
         return """
             <!DOCTYPE html>

@@ -2,13 +2,11 @@ import sqlite3
 
 from document import DocumentStatus
 
-
-storage_name = ""
 connection: sqlite3.Connection = None
 cursor: sqlite3.Cursor = None
 
 
-def init():
+def init(storage_name):
     global connection, cursor
     connection = sqlite3.connect(storage_name, check_same_thread=False, timeout=10)
     cursor = connection.cursor()
@@ -29,6 +27,7 @@ def _create_db():
         (
             name TEXT UNIQUE,
             file_content TEXT,
+            doc_type TEXT,
             encoding TEXT,
             status TEXT
         )
@@ -37,17 +36,18 @@ def _create_db():
     connection.commit()
 
 
-def save_document(content, name, encoding):
+def save_document(content, name, doc_type, encoding):
     try:
         cursor.execute(
             """
             INSERT INTO documents
-            (name, file_content, encoding, status)
+            (name, file_content, doc_type, encoding, status)
             VALUES
-            ("{name}", "{file_content}", "{encoding}", "{status}")
+            ("{name}", "{file_content}", "{doc_type}", "{encoding}", "{status}")
             """.format(
                 name=name,
                 file_content=content,
+                doc_type=doc_type,
                 encoding=encoding,
                 status=DocumentStatus.PROCESSING.name
             )
@@ -84,24 +84,6 @@ def set_document_status(name, status: DocumentStatus):
     connection.commit()
 
 
-def get_document(name):
-    return cursor.execute(
-        """
-        SELECT * FROM documents
-        WHERE name = "{name}"
-        """.format(name=name)
-    ).fetchone()
-
-
-def get_processed_documents():
-    return cursor.execute(
-        """
-        SELECT name FROM documents
-        WHERE status = "{status}"
-        """.format(status=DocumentStatus.PROCESSED.name)
-    ).fetchall()
-
-
 def get_processing_documents():
     return cursor.execute(
         """
@@ -114,6 +96,6 @@ def get_processing_documents():
 def get_documents_statuses():
     return cursor.execute(
         """
-        SELECT name, status FROM documents
+        SELECT name, doc_type, status FROM documents
         """
     ).fetchall()

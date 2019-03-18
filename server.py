@@ -3,7 +3,7 @@ import os
 from flask import Flask, request, Response, render_template, send_from_directory
 
 import storage
-from document import DocumentStatus
+from document import DocumentStatus, DocumentType
 
 app = Flask(__name__)
 posts_dir = os.path.join(os.getcwd(), 'posts')
@@ -17,12 +17,10 @@ def upload():
         print(error)  # todo log
         return Response(error, 500)
     encoding = request.form.get("encoding", "UTF-8")
-    name = request.form.get("name")
-    if not name:
-        name = document.filename
-
+    name = request.form.get("name", document.filename)
+    doc_type = request.form.get("doc_type", DocumentType.MD.name)
     content = document.stream.read().decode(encoding)
-    save_error = storage.save_document(content, name, encoding)
+    save_error = storage.save_document(content, name, doc_type, encoding)
     if save_error:
         return Response(str(save_error), 500)
 

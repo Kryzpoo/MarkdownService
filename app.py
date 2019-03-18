@@ -4,6 +4,7 @@ import storage
 import server
 from processor import Processor
 
+
 if __name__ == "__main__":
     config = ConfigParser()
     config.read("conf.ini")
@@ -12,8 +13,7 @@ if __name__ == "__main__":
     storage_name = config.get("STORAGE", "name")
     process_period = config.getint("PROCESSOR", "period")
     # todo set timeout
-    storage.storage_name = storage_name
-    storage.init()
+    storage.init(storage_name)
     processor = Processor(process_period, storage_name)
     try:
         processor.start()
