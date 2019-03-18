@@ -7,15 +7,25 @@ cursor: sqlite3.Cursor = None
 
 
 def init(storage_name):
+    """
+    Initializing DB: connecting, check if tables are created.
+
+    :param storage_name: full name of .db file
+    """
     global connection, cursor
     connection = sqlite3.connect(storage_name, check_same_thread=False, timeout=10)
     cursor = connection.cursor()
-    table_list = cursor.execute("SELECT * FROM sqlite_master").fetchall()
-    if not table_list:
+    try:
+        # Check table 'documents' is created
+        cursor.execute("SELECT 1 FROM documents").fetchall()
+    except sqlite3.OperationalError:
         _create_db()
 
 
 def close():
+    """
+    Close connection
+    """
     cursor.close()
     connection.close()
 
@@ -87,7 +97,7 @@ def set_document_status(name, status: DocumentStatus):
 def get_processing_documents():
     return cursor.execute(
         """
-        SELECT name, file_content FROM documents
+        SELECT name, doc_type, file_content FROM documents
         WHERE status = "{status}"
         """.format(status=DocumentStatus.PROCESSING.name)
     ).fetchall()
@@ -96,6 +106,6 @@ def get_processing_documents():
 def get_documents_statuses():
     return cursor.execute(
         """
-        SELECT name, doc_type, status FROM documents
+        SELECT name, status FROM documents
         """
     ).fetchall()
