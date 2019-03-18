@@ -12,14 +12,16 @@ if __name__ == "__main__":
     port = config.getint("SERVER", "port")
     storage_name = config.get("STORAGE", "name")
     process_period = config.getint("PROCESSOR", "period")
-    # todo set timeout
+
+    # Initializing storage
     storage.init(storage_name)
     processor = Processor(process_period, storage_name)
+
     try:
-        processor.start()
-        server.app.run(port=port)
+        processor.start()  # Start file processor
+        server.app.run(port=port)  # Start web application
     except Exception as e:
-        print(e)  # todo log
+        print(e)
         storage.close()
         processor.join()
         processor.terminate()
