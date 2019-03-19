@@ -64,7 +64,6 @@ def save_document(content, name, doc_type, encoding):
         )
         connection.commit()
     except sqlite3.IntegrityError as e:
-        print(e)  # todo log
         return e
     return None
 
