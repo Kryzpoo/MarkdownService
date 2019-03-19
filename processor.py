@@ -33,6 +33,7 @@ class Processor(Process):
         Mark process to stop
         """
         self.running = False
+        storage.close()
 
     def infinite_process(self):
         """

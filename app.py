@@ -23,5 +23,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(e)
         storage.close()
+        processor.stop()
         processor.join()
         processor.terminate()
