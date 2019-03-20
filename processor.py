@@ -88,7 +88,7 @@ class MDProcessor:
         :return: .html content string
         """
         content = cls.set_html_headers(content)
-        content = cls.set_html_ul(content)  # Only unordered lists starting with "+"
+        content = cls.set_html_list(content)
         return """
             <!DOCTYPE html>
             <html lang="ru">
@@ -144,30 +144,37 @@ class MDProcessor:
                 cls._append_header(html_content_lines, line, header_level)
             else:
                 # Processing underlined headers
-                for md_header_symbol, header_level in (("=", "h1"), ("-", "h2")):
+                for md_header_symbol, header_level in (("=", 1), ("-", 2)):
                     if cls._is_line_consists_of(line, md_header_symbol):
-                        html_content_lines.pop()
-                        cls._append_header(html_content_lines, line, header_level)
+                        header = html_content_lines.pop()
+                        cls._append_header(html_content_lines, header, header_level)
+                        break
                 else:
                     # Append common line
                     html_content_lines.append(line)
         return os.linesep.join(html_content_lines)
 
-    list_markers = ("+ ", "- ", "* ")
-    all_list_markers = "".join(list_markers)
+    unordered_list_markers = ("+ ", "- ", "* ")
+    ordered_list_markers = "1234567890.)"
+    all_list_markers = "".join(unordered_list_markers) + ordered_list_markers
+
+    ordered_list_matcher = "^\s*\d[\.\)]\s"
+    unordered_list_matcher = "^\s*(\*|\+|\-)\s+"
+    all_lists_ended = False
 
     @classmethod
     def _is_start_li(cls, line):
-        line_lstrip = line.lstrip()
-        for marker in cls.list_markers:
-            if line_lstrip.startswith(marker) and len(line_lstrip) > len(marker):
-                return True
+        # Define ordered list
+        if re.search(cls.ordered_list_matcher, line) is not None \
+                or re.search(cls.unordered_list_matcher, line) is not None:
+                    # Define unordered list
+            return True
         else:
             return False
 
     @classmethod
-    def _get_list_marker(cls, line):
-        return line.lstrip()[0]
+    def _get_list_marker(cls, line, ordered):
+        return line.lstrip(" \t1234567890")[0] if ordered else line.lstrip()[0]
 
     @classmethod
     def _is_same_level(cls, level1, level2):
@@ -182,7 +189,18 @@ class MDProcessor:
         html_content_lines.append("<li>" + line.lstrip(cls.all_list_markers) + "</li>")
 
     @classmethod
-    def _start_ul(cls, md_content_lines, html_content_lines, prev_list_levels, prev_list_marker, line):
+    def _get_list_tag(cls, ordered: bool, start: bool):
+        tag = "ol" if ordered else "ul"
+        return "<{}>".format(tag) if start else "</{}>".format(tag)
+
+    @classmethod
+    def _is_list_element_ordered(cls, line):
+        return re.search(cls.ordered_list_matcher, line) is not None
+
+    @classmethod
+    def _start_ul(cls, md_content_lines, html_content_lines,
+                  prev_list_levels, prev_list_marker, prev_list_orders,
+                  prev_list_empty, line):
         """
         Start new list/sublist cycle
 
@@ -191,71 +209,104 @@ class MDProcessor:
         :param prev_list_levels: previous levels sublists
         :param prev_list_marker: previous list marker
         :param line: current line of md content
+        :param ordered: boolean flag is list ordered
         """
-        html_content_lines.append("<ul>")
-        prev_line_is_empty = False
+        html_content_lines.append(cls._get_list_tag(prev_list_orders[-1], start=True))
 
         while line is not None:
             if cls._is_start_li(line):
                 cur_list_level = len(line) - len(line.lstrip())
-                cur_list_marker = cls._get_list_marker(line)
+                cur_list_ordered = cls._is_list_element_ordered(line)
+                cur_list_marker = cls._get_list_marker(line, cur_list_ordered)
 
-                if cur_list_marker != prev_list_marker:
-                    # Other marker = end all lists
-                    for _ in prev_list_levels:
-                        html_content_lines.append("</ul>")
+                if cls.all_lists_ended:
+                    # Check if all lists ended despite all recursive cycles
+                    html_content_lines.append(cls._get_list_tag(cur_list_ordered, start=True))
+                    prev_list_levels = [cur_list_level]
+                    prev_list_orders = [cur_list_ordered]
+                    cls.all_lists_ended = False
 
-                    # and start new list
-                    cls._start_ul(md_content_lines, html_content_lines, [cur_list_level],
-                                  cur_list_marker, line)  # Recursion
-                    return
+                if prev_list_orders[-1] == cur_list_ordered:
+                    # Same list types
 
-                if cls._is_same_level(cur_list_level, prev_list_levels[-1]):
-                    # Next element of the list
-                    cls._append_li(html_content_lines, line)
-                else:
-                    if cur_list_level in prev_list_levels:
-                        # This is the end of current sublist so stop it
-                        html_content_lines.append("</ul>")
-                        cls._append_li(html_content_lines, line)
-                        prev_list_levels.pop()
+                    if prev_list_marker == cur_list_marker:
+                        # Same list markers
 
-                        # and continue previous lists
-                        return
-
+                        if prev_list_levels[-1] == cur_list_level:
+                            # Same list levels
+                            # Continue list
+                            cls._append_li(html_content_lines, line)
+                        else:
+                            # Different list levels
+                            # Start new sublist
+                            if cur_list_level in prev_list_levels:
+                                # One of previous levels continued
+                                html_content_lines.append(cls._get_list_tag(cur_list_ordered, start=False))
+                                cls._append_li(html_content_lines, line)
+                                prev_list_levels.pop()
+                                prev_list_orders.pop()
+                                return
+                            else:
+                                prev_list_levels.append(cur_list_level)
+                                prev_list_orders.append(cur_list_ordered)
+                                cls._start_ul(md_content_lines, html_content_lines,
+                                              prev_list_levels, cur_list_marker, prev_list_orders,
+                                              False, line)  # Recursion
                     else:
-                        # This is new sublist so remember current level
+                        # Different list markers
+                        # Stop previous lists
+                        for _, order in zip(prev_list_levels, prev_list_orders):
+                            html_content_lines.append(cls._get_list_tag(order, start=False))
+                        # Start new list
+                        cls._start_ul(md_content_lines, html_content_lines,
+                                      [cur_list_level], cur_list_marker, [cur_list_ordered],
+                                      False, line)  # Recursion
+                else:
+                    # Different list types
+                    if prev_list_levels[-1] == cur_list_level:
+                        # Start new sublist
+                        html_content_lines.append(cls._get_list_tag(prev_list_orders[-1], start=False))
                         prev_list_levels.append(cur_list_level)
+                        prev_list_orders.append(cur_list_ordered)
+                        cls._start_ul(md_content_lines, html_content_lines,
+                                      prev_list_levels, cur_list_marker, prev_list_orders,
+                                      False, line)  # Recursion
+                    else:
+                        # Stop previous lists, start new list
+                        for _, order in zip(prev_list_levels, prev_list_orders):
+                            html_content_lines.append(cls._get_list_tag(order, start=False))
 
-                        # And start other inner list
-                        cls._start_ul(md_content_lines, html_content_lines, prev_list_levels,
-                                      cur_list_marker, line)  # Recursion
+                        # Start new sublist
+                        cls._start_ul(md_content_lines, html_content_lines,
+                                      [cur_list_level], cur_list_marker, [cur_list_ordered],
+                                      False, line)  # Recursion
             else:
+                # Line is not list element
                 if cls._is_empty_line(line):
-                    # Remember empty line to stop list if there is no elements
-                    prev_line_is_empty = True
+                    prev_list_empty = True
                     html_content_lines.append(line)
                 else:
-                    if prev_line_is_empty:
-                        # Stop list with all sublists
-                        for _ in prev_list_levels:
-                            html_content_lines.append("</ul>")
-
-                    # And start new paragraph
+                    # Stop previous lists
+                    if prev_list_empty:
+                        for _, order in zip(prev_list_levels, prev_list_orders):
+                            html_content_lines.append(cls._get_list_tag(order, start=False))
+                    cls.all_lists_ended = True
                     html_content_lines.append(line)
-                    prev_line_is_empty = False
+                    html_content_lines.append("<br>")
+                    return
 
             line = next(md_content_lines, None)
 
-        html_content_lines.append("</ul>")
+        html_content_lines.append(cls._get_list_tag(prev_list_orders[-1], start=False))
 
     @classmethod
-    def set_html_ul(cls, content):
+    def set_html_list(cls, content):
         """
         Transform .md unordered lists to .html unordered lists
         Using iterator and remember previous states of list marker/list levels
 
         :param content: string
+        :param ordered: boolean flag is list ordered
         :return: string
         """
         content_lines = content.splitlines()
@@ -267,11 +318,13 @@ class MDProcessor:
             line = next(md_content_lines, None)
             if line:
                 if cls._is_start_li(line):
-                    cur_list_level = len(line) - len(line.lstrip())
-                    line_marker = cls._get_list_marker(line)
-                    cls._start_ul(md_content_lines, html_content_lines, [cur_list_level], line_marker, line)
+                    list_level = len(line) - len(line.lstrip())
+                    list_ordered = cls._is_list_element_ordered(line)
+                    list_marker = cls._get_list_marker(line, list_ordered)
+                    cls._start_ul(md_content_lines, html_content_lines,
+                                  [list_level], list_marker, [list_ordered],
+                                  False, line)
                 else:
                     html_content_lines.append(line)
-                    html_content_lines.append("<br>")
 
         return os.linesep.join(html_content_lines)
