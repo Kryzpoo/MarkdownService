@@ -79,6 +79,14 @@ class ContentProcessor:
 
 class MDProcessor:
 
+    unordered_list_markers = "+-* "
+    ordered_list_markers = "1234567890.) "
+    all_list_markers = unordered_list_markers + ordered_list_markers
+
+    ordered_list_matcher = "^\s*\d[\.\)]\s"
+    unordered_list_matcher = "^\s*(\*|\+|\-)\s+"
+    all_lists_ended = False
+
     @classmethod
     def transform_content(cls, content: str):
         """
@@ -154,14 +162,6 @@ class MDProcessor:
                     html_content_lines.append(line)
         return os.linesep.join(html_content_lines)
 
-    unordered_list_markers = ("+ ", "- ", "* ")
-    ordered_list_markers = "1234567890.)"
-    all_list_markers = "".join(unordered_list_markers) + ordered_list_markers
-
-    ordered_list_matcher = "^\s*\d[\.\)]\s"
-    unordered_list_matcher = "^\s*(\*|\+|\-)\s+"
-    all_lists_ended = False
-
     @classmethod
     def _is_start_li(cls, line):
         # Define ordered list
@@ -200,7 +200,7 @@ class MDProcessor:
     @classmethod
     def _start_ul(cls, md_content_lines, html_content_lines,
                   prev_list_levels, prev_list_marker, prev_list_orders,
-                  prev_list_empty, line):
+                  prev_line_empty, line):
         """
         Start new list/sublist cycle
 
@@ -208,8 +208,9 @@ class MDProcessor:
         :param html_content_lines: list with html content lines
         :param prev_list_levels: previous levels sublists
         :param prev_list_marker: previous list marker
+        :param prev_list_orders: previous orders of lists
+        :param prev_line_empty: boolean flag if previous line is empty
         :param line: current line of md content
-        :param ordered: boolean flag is list ordered
         """
         html_content_lines.append(cls._get_list_tag(prev_list_orders[-1], start=True))
 
@@ -283,11 +284,11 @@ class MDProcessor:
             else:
                 # Line is not list element
                 if cls._is_empty_line(line):
-                    prev_list_empty = True
+                    prev_line_empty = True
                     html_content_lines.append(line)
                 else:
                     # Stop previous lists
-                    if prev_list_empty:
+                    if prev_line_empty:
                         for _, order in zip(prev_list_levels, prev_list_orders):
                             html_content_lines.append(cls._get_list_tag(order, start=False))
                     cls.all_lists_ended = True
@@ -306,7 +307,6 @@ class MDProcessor:
         Using iterator and remember previous states of list marker/list levels
 
         :param content: string
-        :param ordered: boolean flag is list ordered
         :return: string
         """
         content_lines = content.splitlines()
