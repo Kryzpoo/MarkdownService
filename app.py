@@ -1,8 +1,8 @@
 from configparser import ConfigParser
 
-import storage
-import server
-from processor import Processor
+from storage import storage
+from backend import server
+from processor.processor import Processor
 
 
 if __name__ == "__main__":

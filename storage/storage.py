@@ -1,6 +1,6 @@
 import sqlite3
 
-from document import DocumentStatus
+from storage.document import DocumentStatus
 
 connection: sqlite3.Connection = None
 cursor: sqlite3.Cursor = None

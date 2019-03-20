@@ -2,8 +2,8 @@ import os
 
 from flask import Flask, request, Response, render_template, send_from_directory
 
-import storage
-from document import DocumentStatus, DocumentType
+from storage import storage
+from storage.document import DocumentStatus, DocumentType
 
 app = Flask(__name__)
 posts_dir = os.path.join(os.getcwd(), 'posts')
